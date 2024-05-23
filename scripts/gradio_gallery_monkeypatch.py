@@ -3,6 +3,7 @@ from io import BytesIO
 import numpy as np
 from PIL import Image
 import gradio as gr
+from modules.shared import opts
 
 # It's possible we could just use gradio.processing_utils.encode_pil_to_base64
 # But that does something-or-other with metadata; I don't want to test it, and this is short and works.
@@ -15,10 +16,16 @@ def img_to_base64uri(image):
     if not isinstance(image, Image.Image):
         raise NotImplementedError # We don't handle other types
 
-    pseudofile = BytesIO()
-    image.save(pseudofile, format="PNG")
-    base64repr = base64.b64encode(pseudofile.getvalue())
-    return f"data:image/png;base64,{base64repr.decode('utf8')}"
+    with BytesIO() as pseudofile:
+        if opts.enable_pnginfo:
+            metadata = gr.processing_utils.get_pil_metadata(image)
+        
+        if metadata is None:
+            image.save(pseudofile, format="PNG")
+        else:
+            image.save(pseudofile, format="PNG", pnginfo=metadata)
+        base64repr = base64.b64encode(pseudofile.getvalue())
+        return f"data:image/png;base64,{base64repr.decode('utf8')}"
 
 # Do a monkey-patch on the gradio gallery postprocess function to make it output base64 strings instead.
 old_gallery_postprocess = gr.Gallery.postprocess
